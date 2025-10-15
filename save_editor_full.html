@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Save File Editor</title>
+<style>
+body { font-family: "Segoe UI", sans-serif; background: #fdfdfd; color:#222; margin:0; padding:20px; display:flex; justify-content:center; }
+.container { max-width: 950px; width:100%; text-align:center; }
+h2, h3 { margin-bottom: 10px; }
+textarea, input { padding: 8px; margin-top: 4px; box-sizing: border-box; font-family: monospace; font-size:16px; border:1px solid #ccc; border-radius:4px; }
+textarea { width: 100%; }
+input[type="text"], input[type="number"] { min-width: 80px; font-size:16px; }
+input.note-input { min-width:200px; flex:1; font-size:16px; }
+input.value-box { background:#eaeaea; flex:1; min-width:80px; font-size:16px; }
+button { margin-top: 6px; padding: 6px 14px; cursor: pointer; border:none; border-radius:4px; background:#4CAF50; color:white; font-weight:bold; font-size:14px; transition:0.2s; }
+button:hover { background:#45a049; }
+#output, #status, #valueSearchResult, #base64Result { margin-top: 14px; font-weight: 600; padding: 6px; border-radius: 6px; background: #f6f6f6; font-size:16px; white-space: pre-wrap; word-break: break-word; }
+#status.ok { background: #e6ffe6; }
+#status.warn { background: #fff3cd; }
+.controls { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; justify-content:center; }
+.note-container { display:flex; gap:8px; align-items:center; margin-top:6px; justify-content:center; }
+.note-container label { width: 35px; font-weight:bold; }
+.section { margin-bottom:30px; text-align:center; }
+.highlight-btn { background:#2196F3; }
+.highlight-btn:hover { background:#1976D2; }
+input.search-box { width: 400px; font-size:18px; padding:10px; }
+input#index { width: 120px; font-size:18px; padding:6px; }
+input#editValue { width: 300px; font-size:16px; }
+.edit-btn { background:#FF9800; }
+.edit-btn:hover { background:#e68a00; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h2>Save File Editor (113 values)</h2>
+
+<!-- Smart Base64 Section -->
+<div class="section">
+  <h3>Smart Base64 Encoder / Decoder</h3>
+  <textarea id="base64Input" rows="3" placeholder="Enter text to encode/decode"></textarea>
+  <div id="base64Result">Live output will appear here...</div>
+</div>
+
+<!-- Save Data Section -->
+<div class="section">
+  <p>Paste your save data below, then press <strong>Confirm Data</strong> to lock it:</p>
+  <textarea id="data" rows="5" placeholder="example: 12,45,78,9.8,23,..."></textarea>
+  <div class="controls">
+    <button id="confirmBtn">Confirm Data</button>
+    <button id="highlightBtn" class="highlight-btn" disabled>Highlight Value</button>
+  </div>
+  <p>Enter value number (1–113):</p>
+  <input type="number" id="index" min="1" max="113" placeholder="e.g. 5">
+  <div id="output"></div>
+  <div id="editSection" style="display:none;">
+    <p>Edit value:</p>
+    <input type="text" id="editValue">
+    <button id="saveEditBtn">Save Edit</button>
+    <div id="status"></div>
+  </div>
+</div>
+
+<!-- Search by Value -->
+<div class="section">
+  <h3>Search by Value</h3>
+  <input type="text" id="valueSearch" class="search-box" placeholder="Type a value to find its number(s)">
+  <div id="valueSearchResult"></div>
+</div>
+
+<!-- Notes Section -->
+<div class="section">
+  <h3>Dictionary / Notes (Persistent)</h3>
+  <input type="text" id="noteSearch" class="search-box" placeholder="Type to search notes...">
+  <div id="notesContainer"></div>
+  <div class="controls" style="margin-top:10px;">
+    <button id="exportNotesBtn">Download Notes (.json)</button>
+    <input type="file" id="fileInput" accept=".json" style="display:none">
+    <button id="importNotesBtn">Upload Notes (.json)</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+let values = Array(113).fill("");
+let locked = false;
+let highlightActive = false;
+let lastHighlightedIdx = null;
+let notes = Array(113).fill("");
+
+const dataBox = document.getElementById("data");
+const indexInput = document.getElementById("index");
+const outputBox = document.getElementById("output");
+const editBox = document.getElementById("editValue");
+const editSection = document.getElementById("editSection");
+const statusBox = document.getElementById("status");
+const confirmBtn = document.getElementById("confirmBtn");
+const highlightBtn = document.getElementById("highlightBtn");
+const saveEditBtn = document.getElementById("saveEditBtn");
+const notesContainer = document.getElementById("notesContainer");
+const fileInput = document.getElementById("fileInput");
+const exportNotesBtn = document.getElementById("exportNotesBtn");
+const importNotesBtn = document.getElementById("importNotesBtn");
+const valueSearch = document.getElementById("valueSearch");
+const valueSearchResult = document.getElementById("valueSearchResult");
+const noteSearch = document.getElementById("noteSearch");
+
+const base64Input = document.getElementById("base64Input");
+const base64Result = document.getElementById("base64Result");
+
+const valueBoxes = [];
+
+function renderNotes() {
+  notesContainer.innerHTML = "";
+  valueBoxes.length = 0;
+  for(let i=0;i<113;i++){
+    const div = document.createElement("div");
+    div.className = "note-container";
+
+    const label = document.createElement("label");
+    label.innerText = i+1;
+
+    const noteInput = document.createElement("input");
+    noteInput.type="text";
+    noteInput.className="note-input";
+    noteInput.value=notes[i];
+    noteInput.placeholder="idk...";
+    noteInput.addEventListener("input", ()=>{
+      notes[i]=noteInput.value;
+    });
+
+    const valueInput = document.createElement("input");
+    valueInput.type="text";
+    valueInput.value=values[i]||"";
+    valueInput.readOnly=true;
+    valueInput.className="value-box";
+
+    const editBtn = document.createElement("button");
+    editBtn.textContent="Edit";
+    editBtn.className="edit-btn";
+    editBtn.addEventListener("click",()=>{
+      if(valueInput.readOnly){
+        valueInput.readOnly=false;
+        valueInput.style.background="#fff";
+        valueInput.focus();
+        editBtn.textContent="Save";
+        editBtn.style.background="#4CAF50";
+      }else{
+        updateValue(i,valueInput.value);
+        valueInput.readOnly=true;
+        valueInput.style.background="#eaeaea";
+        editBtn.textContent="Edit";
+        editBtn.style.background="";
+        statusBox.className="ok";
+        statusBox.innerText=`✅ Value #${i+1} updated successfully.`;
+        setTimeout(()=>statusBox.innerText="",3000);
+      }
+    });
+
+    valueBoxes.push(valueInput);
+
+    div.appendChild(label);
+    div.appendChild(noteInput);
+    div.appendChild(valueInput);
+    div.appendChild(editBtn);
+    notesContainer.appendChild(div);
+  }
+}
+
+function updateValue(idx,newVal){
+  values[idx]=newVal;
+  dataBox.value=values.join(",");
+  if(valueBoxes[idx]) valueBoxes[idx].value=newVal;
+}
+
+renderNotes();
+
+function showValue(){
+  if(!locked){ outputBox.innerText="Lock (confirm) your data first."; editSection.style.display="none"; return; }
+  const idx=parseInt(indexInput.value);
+  if(isNaN(idx)||idx<1||idx>113){ outputBox.innerText="Enter a valid value number (1–113)"; editSection.style.display="none"; return; }
+  const value=values[idx-1];
+  outputBox.innerText=`Value #${idx}: ${value}`;
+  editBox.value=value;
+  editSection.style.display="block";
+}
+
+indexInput.addEventListener("input", ()=>{
+  if(highlightActive && lastHighlightedIdx!==null) undoHighlight();
+  showValue();
+});
+
+confirmBtn.addEventListener("click", ()=>{
+  if(!locked){
+    let raw=dataBox.value.trim();
+    if(!raw){ alert("Paste your save data first!"); return; }
+    let allValues=raw.split(",");
+    values=allValues.slice(0,113);
+    while(values.length<113) values.push("");
+    dataBox.value=values.join(",");
+    dataBox.readOnly=true;
+    locked=true;
+    confirmBtn.textContent="Unlock / Edit Raw Data";
+    confirmBtn.style.background="#ffd966";
+    highlightBtn.disabled=false;
+    showValue();
+    values.forEach((v,i)=>updateValue(i,v));
+  }else{
+    undoHighlight();
+    dataBox.readOnly=false;
+    locked=false;
+    confirmBtn.textContent="Confirm Data";
+    confirmBtn.style.background="";
+    highlightBtn.disabled=true;
+    outputBox.innerText="Raw data unlocked. Make sure to Confirm Data again when ready.";
+    editSection.style.display="none";
+    values.forEach((v,i)=>updateValue(i,v));
+  }
+});
+
+saveEditBtn.addEventListener("click", ()=>{
+  const idx=parseInt(indexInput.value)-1;
+  if(isNaN(idx)||idx<0||idx>112) return;
+  updateValue(idx,editBox.value);
+  statusBox.className="ok";
+  statusBox.innerText=`✅ Value #${idx+1} updated successfully.`;
+  showValue();
+});
+
+highlightBtn.addEventListener("click", ()=>{
+  const idx=parseInt(indexInput.value)-1;
+  if(!locked||isNaN(idx)||idx<0||idx>112) return;
+  if(!highlightActive) highlightValue(idx);
+  else undoHighlight();
+});
+
+function highlightValue(idx){
+  const beforeLen=values.slice(0,idx).join(",").length;
+  const start=beforeLen+(idx>0?1:0);
+  const end=start+values[idx].length;
+  dataBox.focus();
+  dataBox.setSelectionRange(start,end);
+  highlightActive=true;
+  lastHighlightedIdx=idx;
+  highlightBtn.textContent="Clear Highlight";
+}
+
+function undoHighlight(){
+  if(!highlightActive) return;
+  dataBox.setSelectionRange(0,0);
+  highlightActive=false;
+  lastHighlightedIdx=null;
+  highlightBtn.textContent="Highlight Value";
+  indexInput.focus();
+}
+
+// Notes export/import
+exportNotesBtn.addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(notes, null, 2)], {type:"application/json"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  const randomSuffix = Math.random().toString(36).substring(2,8);
+  link.download = `save-file-${randomSuffix}.json`;
+  link.click();
+});
+
+importNotesBtn.addEventListener("click", ()=>fileInput.click());
+fileInput.addEventListener("change", e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const imported=JSON.parse(ev.target.result);
+      if(Array.isArray(imported)&&imported.length===113){
+        notes=imported;
+        renderNotes();
+        values.forEach((v,i)=>updateValue(i,v));
+        alert("Notes imported successfully!");
+      } else alert("Invalid file format (must be 113 notes).");
+    } catch(err){ alert("Failed to read JSON file."); }
+  };
+  reader.readAsText(file);
+  fileInput.value="";
+});
+
+// Value search
+valueSearch.addEventListener("input", ()=>{
+  const val=valueSearch.value.trim();
+  if(!val){ valueSearchResult.innerText=""; return; }
+  if(!locked){ valueSearchResult.innerText="Lock data first."; return; }
+  const matches=[];
+  values.forEach((v,i)=>{ if(v===val) matches.push(i+1); });
+  valueSearchResult.innerText = matches.length>0 ? `Value found at number(s): ${matches.join(", ")}` : "Value not found.";
+});
+
+// Notes search
+noteSearch.addEventListener("input", ()=>{
+  const q=noteSearch.value.toLowerCase();
+  const noteInputs=notesContainer.querySelectorAll("input.note-input");
+  noteInputs.forEach(inp=>{
+    if(!q) inp.style.background="";
+    else if(inp.value.toLowerCase().includes(q)) inp.style.background="#ffff99";
+    else inp.style.background="";
+  });
+});
+
+// Smart Base64 live detection & main data injection
+function isBase64(str){
+  try{
+    return btoa(atob(str))===str.replace(/\s+/g,'');
+  }catch(e){ return false; }
+}
+
+base64Input.addEventListener("input", ()=>{
+  const val = base64Input.value.trim();
+  if(!val){ base64Result.innerText=""; return; }
+  if(isBase64(val)){
+    try{
+      const decoded = atob(val);
+      base64Result.innerText = decoded;
+      dataBox.value = decoded;
+      if(locked){
+        values = decoded.split(",").slice(0,113);
+        while(values.length<113) values.push("");
+        values.forEach((v,i)=>updateValue(i,v));
+      }
+    }catch(e){ base64Result.innerText="❌ Invalid Base64"; }
+  }else{
+    try{
+      const encoded = btoa(val);
+      base64Result.innerText = encoded;
+    }catch(e){ base64Result.innerText="❌ Failed to encode"; }
+  }
+});
+</script>
+</div>
+</body>
+</html>
