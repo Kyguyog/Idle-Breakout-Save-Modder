@@ -5,22 +5,92 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Save File Editor</title>
 <style>
-body { font-family: "Segoe UI", sans-serif; background: #fdfdfd; color:#222; margin:0; padding:20px; display:flex; justify-content:center; }
-.container { max-width: 950px; width:100%; text-align:center; }
-h2, h3 { margin-bottom: 10px; }
-textarea, input { padding: 8px; margin-top: 4px; box-sizing: border-box; font-family: monospace; font-size:16px; border:1px solid #ccc; border-radius:4px; }
+:root {
+  --bg-primary: #fdfdfd;
+  --bg-secondary: #f6f6f6;
+  --bg-input: #ffffff;
+  --bg-input-disabled: #eaeaea;
+  --text-primary: #222;
+  --text-secondary: #666;
+  --border-color: #ccc;
+  --success-bg: #e6ffe6;
+  --warn-bg: #fff3cd;
+  --highlight-search: #ffff99;
+  --highlight-edit: #fff;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-input: #1c2128;
+  --bg-input-disabled: #21262d;
+  --text-primary: #c9d1d9;
+  --text-secondary: #8b949e;
+  --border-color: #30363d;
+  --success-bg: #1a3a1a;
+  --warn-bg: #3d2f1a;
+  --highlight-search: #4a4a00;
+  --highlight-edit: #0d1117;
+}
+
+body { 
+  font-family: "Segoe UI", sans-serif; 
+  background: var(--bg-primary); 
+  color: var(--text-primary); 
+  margin:0; 
+  padding:20px; 
+  display:flex; 
+  justify-content:center;
+  transition: background 0.3s, color 0.3s;
+}
+.container { max-width: 950px; width:100%; text-align:center; position: relative; }
+h2, h3 { margin-bottom: 10px; color: var(--text-primary); }
+textarea, input { 
+  padding: 8px; 
+  margin-top: 4px; 
+  box-sizing: border-box; 
+  font-family: monospace; 
+  font-size:16px; 
+  border:1px solid var(--border-color); 
+  border-radius:4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
 textarea { width: 100%; }
 input[type="text"], input[type="number"] { min-width: 80px; font-size:16px; }
 input.note-input { min-width:200px; flex:1; font-size:16px; }
-input.value-box { background:#eaeaea; flex:1; min-width:80px; font-size:16px; }
-button { margin-top: 6px; padding: 6px 14px; cursor: pointer; border:none; border-radius:4px; background:#4CAF50; color:white; font-weight:bold; font-size:14px; transition:0.2s; }
+input.value-box { background: var(--bg-input-disabled); flex:1; min-width:80px; font-size:16px; }
+button { 
+  margin-top: 6px; 
+  padding: 6px 14px; 
+  cursor: pointer; 
+  border:none; 
+  border-radius:4px; 
+  background:#4CAF50; 
+  color:white; 
+  font-weight:bold; 
+  font-size:14px; 
+  transition:0.2s; 
+}
 button:hover { background:#45a049; }
-#output, #status, #valueSearchResult, #base64Result { margin-top: 14px; font-weight: 600; padding: 6px; border-radius: 6px; background: #f6f6f6; font-size:16px; white-space: pre-wrap; word-break: break-word; }
-#status.ok { background: #e6ffe6; }
-#status.warn { background: #fff3cd; }
+#output, #status, #valueSearchResult, #base64Result { 
+  margin-top: 14px; 
+  font-weight: 600; 
+  padding: 6px; 
+  border-radius: 6px; 
+  background: var(--bg-secondary); 
+  font-size:16px; 
+  white-space: pre-wrap; 
+  word-break: break-word; 
+  border: 1px solid var(--border-color);
+  transition: background 0.3s, border-color 0.3s;
+}
+#status.ok { background: var(--success-bg); }
+#status.warn { background: var(--warn-bg); }
 .controls { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; justify-content:center; }
 .note-container { display:flex; gap:8px; align-items:center; margin-top:6px; justify-content:center; }
-.note-container label { width: 35px; font-weight:bold; }
+.note-container label { width: 35px; font-weight:bold; color: var(--text-secondary); }
 .section { margin-bottom:30px; text-align:center; }
 .highlight-btn { background:#2196F3; }
 .highlight-btn:hover { background:#1976D2; }
@@ -29,11 +99,33 @@ input#index { width: 120px; font-size:18px; padding:6px; }
 input#editValue { width: 300px; font-size:16px; }
 .edit-btn { background:#FF9800; }
 .edit-btn:hover { background:#e68a00; }
+input::placeholder { color: var(--text-secondary); }
+textarea::placeholder { color: var(--text-secondary); }
+
+#themeToggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+#themeToggle:hover {
+  background: var(--bg-input-disabled);
+  transform: scale(1.1);
+}
 </style>
 </head>
 <body>
 
 <div class="container">
+<button id="themeToggle" title="Toggle theme">🌙</button>
+
 <h2>Save File Editor (113 values)</h2>
 
 <!-- Smart Base64 Section -->
@@ -105,11 +197,19 @@ const importNotesBtn = document.getElementById("importNotesBtn");
 const valueSearch = document.getElementById("valueSearch");
 const valueSearchResult = document.getElementById("valueSearchResult");
 const noteSearch = document.getElementById("noteSearch");
-
 const base64Input = document.getElementById("base64Input");
 const base64Result = document.getElementById("base64Result");
+const themeToggle = document.getElementById("themeToggle");
 
 const valueBoxes = [];
+
+// Theme toggle
+themeToggle.addEventListener("click", ()=>{
+  const currentTheme = document.body.getAttribute("data-theme");
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+  document.body.setAttribute("data-theme", newTheme);
+  themeToggle.textContent = newTheme === "dark" ? "☀️" : "🌙";
+});
 
 function renderNotes() {
   notesContainer.innerHTML = "";
@@ -142,14 +242,17 @@ function renderNotes() {
     editBtn.addEventListener("click",()=>{
       if(valueInput.readOnly){
         valueInput.readOnly=false;
-        valueInput.style.background="#fff";
+        const isDark = document.body.getAttribute("data-theme") === "dark";
+        valueInput.style.background = isDark ? "#0d1117" : "#fff";
+        valueInput.style.borderColor="#4CAF50";
         valueInput.focus();
         editBtn.textContent="Save";
         editBtn.style.background="#4CAF50";
       }else{
         updateValue(i,valueInput.value);
         valueInput.readOnly=true;
-        valueInput.style.background="#eaeaea";
+        valueInput.style.background="";
+        valueInput.style.borderColor="";
         editBtn.textContent="Edit";
         editBtn.style.background="";
         statusBox.className="ok";
@@ -203,6 +306,7 @@ confirmBtn.addEventListener("click", ()=>{
     locked=true;
     confirmBtn.textContent="Unlock / Edit Raw Data";
     confirmBtn.style.background="#ffd966";
+    confirmBtn.style.color="#000";
     highlightBtn.disabled=false;
     showValue();
     values.forEach((v,i)=>updateValue(i,v));
@@ -212,6 +316,7 @@ confirmBtn.addEventListener("click", ()=>{
     locked=false;
     confirmBtn.textContent="Confirm Data";
     confirmBtn.style.background="";
+    confirmBtn.style.color="";
     highlightBtn.disabled=true;
     outputBox.innerText="Raw data unlocked. Make sure to Confirm Data again when ready.";
     editSection.style.display="none";
@@ -301,7 +406,10 @@ noteSearch.addEventListener("input", ()=>{
   const noteInputs=notesContainer.querySelectorAll("input.note-input");
   noteInputs.forEach(inp=>{
     if(!q) inp.style.background="";
-    else if(inp.value.toLowerCase().includes(q)) inp.style.background="#ffff99";
+    else if(inp.value.toLowerCase().includes(q)) {
+      const isDark = document.body.getAttribute("data-theme") === "dark";
+      inp.style.background = isDark ? "#4a4a00" : "#ffff99";
+    }
     else inp.style.background="";
   });
 });
