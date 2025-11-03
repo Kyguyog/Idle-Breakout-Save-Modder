@@ -1,3 +1,3 @@
 # Idle-Breakout-Save-Modder
 
-Go to releases for the latest .json save file
+Go to latest file tagged as "json-save-file" in releases for the latest .json save file
